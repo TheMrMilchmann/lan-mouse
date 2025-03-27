@@ -9,22 +9,25 @@ use std::thread;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::Sender;
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{FALSE, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
+use windows::Win32::Foundation::{
+    BOOL, FALSE, HINSTANCE, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM,
+};
 use windows::Win32::Graphics::Gdi::{
     EnumDisplayDevicesW, EnumDisplaySettingsW, DEVMODEW, DISPLAY_DEVICEW,
     DISPLAY_DEVICE_ATTACHED_TO_DESKTOP, ENUM_CURRENT_SETTINGS,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
-
+use windows::Win32::UI::Input::KeyboardAndMouse::GetCapture;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, CreateWindowExW, DispatchMessageW, GetMessageW, PostThreadMessageW,
-    RegisterClassW, SetWindowsHookExW, TranslateMessage, EDD_GET_DEVICE_INTERFACE_NAME, HHOOK,
-    HMENU, HOOKPROC, KBDLLHOOKSTRUCT, LLKHF_EXTENDED, MSG, MSLLHOOKSTRUCT, WH_KEYBOARD_LL,
-    WH_MOUSE_LL, WINDOW_STYLE, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN,
-    WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL,
-    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER, WM_XBUTTONDOWN,
-    WM_XBUTTONUP, WNDCLASSW, WNDPROC,
+    CallNextHookEx, CreateWindowExW, DispatchMessageW, EnumWindows, GetCursorInfo,
+    GetGUIThreadInfo, GetMessageW, GetWindowThreadProcessId, PostThreadMessageW, RegisterClassW,
+    SetWindowsHookExW, TranslateMessage, CURSORINFO, CURSOR_SHOWING, EDD_GET_DEVICE_INTERFACE_NAME,
+    GUITHREADINFO, HHOOK, HMENU, HOOKPROC, KBDLLHOOKSTRUCT, LLKHF_EXTENDED, MSG, MSLLHOOKSTRUCT,
+    WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_STYLE, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP,
+    WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
+    WM_MOUSEWHEEL, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER,
+    WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC,
 };
 
 use input_event::{
@@ -260,7 +263,26 @@ fn start_routine(
     }
 }
 
+fn is_cursor_visible() -> bool {
+    unsafe {
+        let mut cursor_info = CURSORINFO {
+            cbSize: size_of::<CURSORINFO>() as u32,
+            ..Default::default()
+        };
+
+        if GetCursorInfo(&mut cursor_info).is_ok() {
+            cursor_info.flags == CURSOR_SHOWING
+        } else {
+            false
+        }
+    }
+}
+
 fn check_client_activation(wparam: WPARAM, lparam: LPARAM) -> bool {
+    if !is_cursor_visible() {
+        return false;
+    }
+
     if wparam.0 != WM_MOUSEMOVE as usize {
         return ACTIVE_CLIENT.get().is_some();
     }
